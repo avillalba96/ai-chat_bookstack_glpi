@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="Asistente para consultar BookStack y GLPI y resolver casos de soporte." />
+  <title>{{ ui_product }} — Documentación</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='chat.css') }}?v={{ static_v }}" />
+  <!-- Librerías locales: evitan fallos si el CDN está bloqueado o sin red (HTTP plano funciona igual). -->
+  <script src="{{ url_for('static', filename='vendor/marked.min.js') }}?v={{ static_v }}"></script>
+  <script src="{{ url_for('static', filename='vendor/purify.min.js') }}?v={{ static_v }}"></script>
+</head>
+<body>
+  <div class="layout-shell" id="layout-shell">
+    <aside class="sidebar" id="sidebar" aria-label="Conversaciones">
+      <div class="sidebar-head">
+        <span class="sidebar-brand">{{ ui_product }}</span>
+        <button type="button" class="btn-sidebar-new" id="btn-new-chat" title="Nueva conversación">+ Nueva</button>
+      </div>
+      <p class="sidebar-hint">Las conversaciones se guardan solo en este navegador (almacenamiento local).</p>
+      <div class="session-list" id="session-list" role="list"></div>
+    </aside>
+
+    <div class="sidebar-backdrop" id="sidebar-backdrop" hidden aria-hidden="true"></div>
+
+    <div class="main-wrap">
+      <div class="app">
+        <header class="top-bar">
+          <button type="button" class="btn-sidebar-toggle" id="btn-sidebar-toggle" aria-expanded="false" aria-controls="sidebar" title="Conversaciones">
+            ☰
+          </button>
+          <div class="brand">
+            <h1 class="product-name">{{ ui_product }}</h1>
+            <p class="product-tagline">{{ ui_tagline }}</p>
+          </div>
+          <button type="button" class="btn-ghost" id="btn-settings" aria-expanded="false" aria-controls="settings-panel">
+            Configuración
+          </button>
+        </header>
+
+        <div id="messages" class="messages">
+          <div class="welcome" id="welcome">
+            <p>Formule su consulta abajo. Las respuestas se basan en la documentación autorizada indexada por el sistema.</p>
+            <p class="welcome-hint">Use <strong>Enter</strong> para enviar y <strong>Mayús+Enter</strong> para un salto de línea. Elija abajo si buscar en la <strong>wiki</strong>, en <strong>GLPI</strong> o en <strong>ambos</strong>. El historial del hilo se guarda solo en el navegador.</p>
+          </div>
+        </div>
+
+        <div class="composer">
+          <form id="f">
+            <p class="search-source-note">
+              La búsqueda en <strong>GLPI</strong> es por <strong>texto</strong> en el servidor (no vectorial). El asistente usa
+              <strong>solo texto</strong> de los tickets (sin visión ni análisis de firmas/imágenes de correo).
+            </p>
+            <div class="search-source-bar" role="radiogroup" aria-label="Dónde buscar la respuesta">
+              <span class="search-source-label" id="search-source-label">Buscar en</span>
+              <label class="search-source-opt">
+                <input type="radio" name="search_source" value="both" checked aria-describedby="search-source-label" />
+                Wiki + GLPI
+              </label>
+              <label class="search-source-opt">
+                <input type="radio" name="search_source" value="wiki" />
+                Solo wiki
+              </label>
+              <label class="search-source-opt">
+                <input type="radio" name="search_source" value="glpi" />
+                Solo GLPI
+              </label>
+            </div>
+            <label for="q" class="sr-only">Consulta</label>
+            <textarea id="q" name="question" placeholder="Escriba su consulta… (Enter envía, Mayús+Enter nueva línea)" rows="2" autofocus></textarea>
+            <div class="row composer-actions">
+              <span class="composer-hint">Enter envía · Mayús+Enter nueva línea</span>
+              <button type="submit" class="btn-primary" id="send">Enviar</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="settings-panel" class="settings-panel" hidden aria-hidden="true" role="dialog" aria-labelledby="settings-title">
+    <div class="settings-inner">
+      <div class="settings-head">
+        <h2 id="settings-title">Configuración del sistema</h2>
+        <button type="button" class="btn-ghost" id="settings-close" aria-label="Cerrar panel de configuración">Cerrar</button>
+      </div>
+      <p class="dotenv-meta">Archivo de entorno: <code id="dotenv-path"></code></p>
+      <p id="settings-status" class="settings-status" role="status"></p>
+
+      <details class="panel-block" open>
+        <summary>Variables de entorno (<code>.env</code>)</summary>
+        <p class="help">
+          Los valores definidos aquí se aplican a cada consulta en el proceso del servidor (memoria). El botón <strong>Guardar en archivo .env</strong> persiste los cambios en disco.
+          Si el servicio es accesible desde la red (por ejemplo, <code>WIKI_WEB_HOST=0.0.0.0</code>), quien disponga de la URL podrá visualizar o modificar credenciales desde este panel: conviene restringir el acceso mediante políticas de red, proxy inverso o autenticación institucional.
+        </p>
+        <label class="checkbox-inline">
+          <input type="checkbox" id="reveal-secrets" />
+          Mostrar credenciales y claves API ocultas
+        </label>
+        <div id="env-fields"></div>
+        <button type="button" class="btn-secondary" id="btn-save-env">Guardar en archivo .env</button>
+      </details>
+
+      <details class="panel-block" open>
+        <summary>Identidad y restricciones del asistente (Markdown)</summary>
+        <div class="field">
+          <label for="persona-path">Ruta del archivo de persona</label>
+          <input type="text" id="persona-path" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="constraints-path">Ruta del archivo de restricciones</label>
+          <input type="text" id="constraints-path" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="persona-text">Contenido — persona del asistente</label>
+          <textarea id="persona-text" rows="8" spellcheck="false"></textarea>
+        </div>
+        <div class="field">
+          <label for="constraints-text">Contenido — restricciones operativas</label>
+          <textarea id="constraints-text" rows="6" spellcheck="false"></textarea>
+        </div>
+        <button type="button" class="btn-secondary" id="btn-save-persona">Guardar archivos Markdown</button>
+      </details>
+
+      <details class="panel-block" open>
+        <summary>Opciones por consulta (equivalente a argumentos de línea de comandos)</summary>
+        <p class="help">Se aplican junto con cada envío; no alteran el archivo <code>.env</code> salvo que utilice la opción de guardado correspondiente.</p>
+        <div class="flags-grid">
+          <label class="checkbox-inline"><input type="checkbox" id="ap-debug" /> Depuración (<code>--debug</code>)</label>
+          <label class="checkbox-inline"><input type="checkbox" id="ap-no-vision" /> Desactivar visión (<code>--no-vision</code>)</label>
+          <label class="checkbox-inline"><input type="checkbox" id="ap-no-pdf" /> Excluir PDF (<code>--no-pdf</code>)</label>
+          <label class="checkbox-inline"><input type="checkbox" id="ap-no-assets" /> Excluir recursos HTML (<code>--no-assets</code>)</label>
+          <label class="checkbox-inline"><input type="checkbox" id="ap-no-gallery" /> Excluir galería (<code>--no-gallery</code>)</label>
+          <label class="checkbox-inline"><input type="checkbox" id="ap-no-text-attach" /> Excluir adjuntos de texto (<code>--no-text-attach</code>)</label>
+        </div>
+        <div class="field">
+          <label for="ap-quality">Prioridad de calidad (solo esta consulta; opcional)</label>
+          <select id="ap-quality">
+            <option value="">Según <code>WIKI_QUALITY_MODE</code> en el formulario de entorno</option>
+            <option value="economy">economy — menor costo computacional</option>
+            <option value="balanced">balanced — equilibrio predeterminado</option>
+            <option value="thorough">thorough — mayor profundidad de contexto</option>
+          </select>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <div id="lightbox" class="lightbox" hidden aria-hidden="true">
+    <button type="button" class="lightbox-close" aria-label="Cerrar vista ampliada">×</button>
+    <img id="lightbox-img" alt="Vista ampliada del recurso gráfico" />
+  </div>
+
+  <script src="{{ url_for('static', filename='app.js') }}?v={{ static_v }}" defer></script>
+</body>
+</html>

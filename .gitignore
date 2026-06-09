@@ -1,0 +1,12 @@
+.env
+.env.local
+.env.*.local
+!.env.example
+persona.local/
+CURSOR_HANDOFF_AI-WIKI.md
+*.pyc
+__pycache__/
+.venv/
+.python-version
+.cache/
+*.log
